@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
@@ -21,6 +22,22 @@
 
 using namespace WallpaperEngine::Application;
 using WallpaperEngine::Data::JSON::JSON;
+
+std::filesystem::path ApplicationContext::playlistStartItem (const PlaylistDefinition& playlist) const {
+    if (playlist.items.empty ()) {
+	return {};
+    }
+
+    // random playlists should also start at a random point, otherwise every launch shows the same wallpaper
+    if (playlist.settings.order != "random" || playlist.items.size () == 1) {
+	return playlist.items.front ();
+    }
+
+    static std::mt19937 rng { std::random_device {}() };
+    std::uniform_int_distribution<std::size_t> distribution (0, playlist.items.size () - 1);
+
+    return playlist.items[distribution (rng)];
+}
 
 std::filesystem::path ApplicationContext::resolvePlaylistItemPath (const std::string& raw) const {
     if (raw.empty ()) {
@@ -386,16 +403,16 @@ void ApplicationContext::loadSettingsFromArgv () {
 	    if (lastScreen.empty ()) {
 		this->settings.general.defaultPlaylist = playlist;
 		if (this->settings.general.defaultBackground.empty () && !playlist.items.empty ()) {
-		    this->settings.general.defaultBackground = playlist.items.front ();
+		    this->settings.general.defaultBackground = this->playlistStartItem (playlist);
 		}
 	    } else {
 		this->settings.general.screenPlaylists[lastScreen] = playlist;
 		if (!playlist.items.empty ()) {
-		    this->settings.general.screenBackgrounds[lastScreen] = playlist.items.front ();
+		    this->settings.general.screenBackgrounds[lastScreen] = this->playlistStartItem (playlist);
 		}
 
 		if (this->settings.general.defaultBackground.empty () && !playlist.items.empty ()) {
-		    this->settings.general.defaultBackground = playlist.items.front ();
+		    this->settings.general.defaultBackground = this->playlistStartItem (playlist);
 		}
 	    }
 	})

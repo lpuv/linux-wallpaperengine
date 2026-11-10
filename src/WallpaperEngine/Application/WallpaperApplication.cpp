@@ -184,9 +184,10 @@ void WallpaperApplication::loadBackgrounds () {
 	|| this->m_context.settings.render.mode == ApplicationContext::EXPLICIT_WINDOW) {
 	auto path = this->m_context.settings.general.defaultBackground;
 
-	if (this->m_context.settings.general.defaultPlaylist.has_value ()
-	    && !this->m_context.settings.general.defaultPlaylist->items.empty ()) {
-	    path = this->m_context.settings.general.defaultPlaylist->items.front ();
+	// the playlist already picked its starting item (a random one for "order": "random"), so only
+	// fall back to it when no background was configured explicitly
+	if (path.empty () && this->m_context.settings.general.defaultPlaylist.has_value ()) {
+	    path = this->m_context.playlistStartItem (this->m_context.settings.general.defaultPlaylist.value ());
 	}
 
 	this->m_backgrounds["default"] = this->loadBackground (path);
@@ -304,9 +305,11 @@ void WallpaperApplication::initializePlaylists () {
 	&& (this->m_context.settings.render.mode == ApplicationContext::NORMAL_WINDOW
 	    || this->m_context.settings.render.mode == ApplicationContext::EXPLICIT_WINDOW)) {
 	const auto& playlist = this->m_context.settings.general.defaultPlaylist.value ();
-	const auto currentPath = playlist.items.empty ()
-	    ? std::optional<std::filesystem::path> { this->m_context.settings.general.defaultBackground }
-	    : std::optional<std::filesystem::path> { playlist.items.front () };
+	// anchor the playlist on the wallpaper that was actually loaded so the next switch continues from it
+	const auto& currentBackground = this->m_context.settings.general.defaultBackground;
+	const auto currentPath = currentBackground.empty ()
+	    ? std::nullopt
+	    : std::optional<std::filesystem::path> { currentBackground };
 	registerPlaylist ("default", playlist, currentPath);
     }
 

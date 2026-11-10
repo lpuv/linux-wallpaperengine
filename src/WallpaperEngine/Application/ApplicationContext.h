@@ -74,6 +74,14 @@ public:
 	TextureFlags clamp = TextureFlags_ClampUVs;
     };
 
+    /**
+     * Returns the item a playlist should start on.
+     *
+     * Playlists configured with "order": "random" start on a random item so that every launch shows a
+     * different wallpaper, while sequential playlists keep starting on their first item.
+     */
+    [[nodiscard]] std::filesystem::path playlistStartItem (const PlaylistDefinition& playlist) const;
+
     struct {
 	/**
 	 * General settings
