@@ -158,6 +158,7 @@ private:
     void setupRenderFramebuffer () const;
     void setupRenderTexture ();
     [[nodiscard]] std::shared_ptr<const TextureProvider> resolveTexture0 ();
+    [[nodiscard]] std::shared_ptr<const TextureProvider> resolveTextureChain (int index) const;
     [[nodiscard]] TextureAnimationState
     resolveTextureAnimationState (const std::shared_ptr<const TextureProvider>& texture) const;
     void bindTextureUnit (int index, const std::shared_ptr<const TextureProvider>& texture, uint32_t frame) const;

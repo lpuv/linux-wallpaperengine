@@ -108,6 +108,22 @@ std::shared_ptr<const TextureProvider> CPass::resolveTexture (
     return this->resolveFBO (it->second);
 }
 
+std::shared_ptr<const TextureProvider> CPass::resolveTextureChain (int index) const {
+    const auto it = this->m_textures.find (index);
+
+    if (it == this->m_textures.end ()) {
+	return nullptr;
+    }
+
+    for (const TextureChainEntry* chain = it->second.get (); chain != nullptr; chain = chain->next.get ()) {
+	if (chain->texture != nullptr) {
+	    return chain->texture;
+	}
+    }
+
+    return nullptr;
+}
+
 std::shared_ptr<const CFBO> CPass::resolveFBO (const std::string& name) const {
     auto fbo = this->m_fboProvider->find (name);
 
@@ -493,7 +509,9 @@ void CPass::render () {
 	return;
     }
 
-    if (this->m_input == nullptr) {
+    // the input can be missing when the object has no texture of its own and the shader provides
+    // a default for g_Texture0 (particles with "textures": [null] are a common case)
+    if (this->m_input == nullptr && this->resolveTexture0 () == nullptr) {
 	sLog.error ("Skipping render pass for object ", this->m_renderable.getId (), ": no input texture set");
 	return;
     }
@@ -820,6 +838,13 @@ void CPass::setupTextureUniforms () {
 
     // resolve the main texture
     std::shared_ptr<const TextureProvider> texture = this->resolveTexture (this->m_renderable.getTexture (), 0);
+
+    // objects without a texture of their own (for example particle materials that only declare
+    // "textures": [null]) rely on the shader's default for g_Texture0, which is stored in the chain
+    if (texture == nullptr) {
+	texture = this->resolveTextureChain (0);
+    }
+
     // register all the texture uniforms with correct values
     this->addUniform ("g_Texture0", 0);
     this->addUniform ("g_Texture1", 1);
@@ -830,8 +855,16 @@ void CPass::setupTextureUniforms () {
     this->addUniform ("g_Texture6", 6);
     this->addUniform ("g_Texture7", 7);
     this->addUniform ("g_TextureReductionScale", 1.0f);
-    this->m_texture0Resolution = *texture->getResolution ();
-    this->addUniform ("g_Texture0Resolution", &this->m_texture0Resolution);
+
+    if (texture != nullptr) {
+	this->m_texture0Resolution = *texture->getResolution ();
+	this->addUniform ("g_Texture0Resolution", &this->m_texture0Resolution);
+    } else {
+	sLog.error (
+	    "Cannot resolve texture 0 for object ", this->m_renderable.getId (), " (shader ", this->m_pass.shader,
+	    "), skipping its resolution uniforms"
+	);
+    }
 
     for (const auto& [textureIndex, expectedTexture] : this->m_textures) {
 	std::ostringstream namestream;
@@ -839,6 +872,15 @@ void CPass::setupTextureUniforms () {
 	namestream << "g_Texture" << textureIndex << "Resolution";
 
 	texture = this->resolveTexture (expectedTexture->texture, textureIndex, texture);
+
+	if (texture == nullptr) {
+	    texture = this->resolveTextureChain (textureIndex);
+	}
+
+	if (texture == nullptr) {
+	    continue;
+	}
+
 	this->addUniform (namestream.str (), texture->getResolution ());
     }
 
